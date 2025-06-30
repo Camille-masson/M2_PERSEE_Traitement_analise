@@ -2424,3 +2424,102 @@ if (FALSE){
   }
   
   
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  ######## SMOD #########
+  
+  library(terra)
+  library(dplyr)
+  library(ggplot2)
+  
+  # Charger le raster
+  raster_path <- "C:/Users/massocam/Documents/STAGE_M2_PERSEE/R_studio/PERSEE_Traitement_Catlog/outputs/8. Analysis_Climate/SMOD/SMOD_median_20130901_20230911_Cayolle.tif"
+  r <- rast(raster_path)
+  
+  # Extraire les valeurs numériques (jours de l'année)
+  jour_annee <- values(r)
+  jour_annee <- jour_annee[!is.na(jour_annee)]
+  jour_annee <- as.integer(jour_annee)
+  
+  # Créer un tableau du nombre de pixels par jour de l’année
+  df <- data.frame(jour = jour_annee) %>%
+    group_by(jour) %>%
+    summarise(nb_pixels = n()) %>%
+    arrange(jour)
+  
+  # Tracer la courbe
+  ggplot(df, aes(x = jour, y = nb_pixels)) +
+    geom_line(color = "blue", linewidth = 1) +
+    labs(title = "Nombre de pixels déneigés par jour de l'année (médiane)",
+         x = "Jour de l'année (1 = 1er janv.)",
+         y = "Nombre de pixels") +
+    theme_minimal()
+
+  
+  
+  library(terra)
+  library(dplyr)
+  library(ggplot2)
+  
+  # Charger le raster
+  raster_path <- "C:/Users/massocam/Documents/STAGE_M2_PERSEE/R_studio/PERSEE_Traitement_Catlog/outputs/8. Analysis_Climate/SMOD/SMOD_median_20130901_20230911_Cayolle.tif"
+  r <- rast(raster_path)
+  
+  # Extraire les valeurs (jour de l'année)
+  jour_annee <- values(r)
+  jour_annee <- jour_annee[!is.na(jour_annee)]
+  jour_annee <- as.integer(jour_annee)
+  
+  # Créer un tableau du nombre de pixels par jour
+  df <- data.frame(jour = jour_annee) %>%
+    group_by(jour) %>%
+    summarise(nb_pixels = n()) %>%
+    arrange(jour) %>%
+    mutate(cumul_pixels = cumsum(nb_pixels),
+           fraction = cumul_pixels / sum(nb_pixels))
+  
+  # Tracer la courbe cumulée
+  ggplot(df, aes(x = jour, y = cumul_pixels)) +
+    geom_line(color = "darkgreen", linewidth = 1) +
+    labs(title = "Cumul des pixels déneigés par jour de l'année",
+         x = "Jour de l'année",
+         y = "Cumul de pixels déneigés") +
+    theme_minimal()  
+  
