@@ -1665,3 +1665,170 @@ park_state_flock_load_tif_filtered <- function(park_state_rds, output_dir, YEAR,
   }
 }
 
+
+
+
+
+
+
+
+
+
+
+
+traj_segments_catlog <- function(
+    state_rds_file,
+    out_dir,
+    YEAR,
+    alpage,
+    sampling_interval = 10,
+    eos_raster
+) {
+  suppressPackageStartupMessages({
+    library(dplyr); library(sf); library(terra); library(lubridate)
+  })
+  
+  d0 <- readRDS(state_rds_file)
+  
+  ## ─── FILTRAGE comportement + 1er collier ────────────────────────────────
+  # • on suppose une colonne nommée `state` (adapt. si ‘behaviour’, etc.)
+  keep_states <- c("paturage", "deplacement")         # à ajuster si besoin
+  d0 <- d0 %>%
+    filter(tolower(state) %in% keep_states) %>%  # garder 2 états
+    filter(ID == unique(ID)[1])                  # premier collier
+  
+  if (nrow(d0) < 2) {
+    stop("Pas assez de points après filtrage état + collier.")
+  }
+  
+  dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
+  
+  ## ─── le reste ne change pas ─────────────────────────────────────────────
+  id <- unique(d0$ID)[1]
+  
+  sub <- d0 %>% arrange(time)
+  
+  # conversion POSIXct robuste
+  if (is.numeric(sub$time)) {
+    sub$time <- as.POSIXct(sub$time, origin = "1970‑01‑01", tz = "UTC")
+  } else if (inherits(sub$time, "character")) {
+    sub$time <- ymd_hms(sub$time, tz = "UTC", quiet = TRUE)
+    if (all(is.na(sub$time)))
+      sub$time <- ymd_hm(sub$time, tz = "UTC", quiet = TRUE)
+  }
+  stopifnot(inherits(sub$time, "POSIXct"))
+  
+  # sous‑échantillonnage
+  sub <- sub[seq(1, nrow(sub), by = sampling_interval / 10), ]
+  if (nrow(sub) < 2) stop("Trop peu de points après sous‑échantillonnage.")
+  
+  pts <- st_as_sf(sub, coords = c("x", "y"), crs = 2154)
+  
+  seg_list <- vector("list", nrow(pts)-1)
+  for (i in seq_len(nrow(pts)-1)) {
+    p1 <- pts[i, ]; p2 <- pts[i+1, ]
+    seg_geom <- st_union(p1$geometry, p2$geometry) |>
+      st_cast("LINESTRING")
+    
+    mid_xy  <- st_line_sample(seg_geom, sample = 0.5, type = "regular") |>
+      st_coordinates()
+    time_mid <- p1$time + difftime(p2$time, p1$time, units = "secs") / 2
+    doy_mid  <- yday(time_mid)
+    
+    eos_val <- terra::extract(eos_raster, mid_xy[,1:2])[1,1]
+    delta   <- doy_mid - eos_val
+    
+    seg_list[[i]] <- data.frame(
+      ID         = id,
+      state      = p1$state,          # état du point amont (optionnel)
+      time_mid   = time_mid,
+      DOY_mid    = doy_mid,
+      EOS10      = eos_val,
+      delta_EOS  = delta,
+      geometry   = st_geometry(seg_geom)
+    )
+  }
+  seg_sf <- do.call(rbind, seg_list) |> st_as_sf(crs = 2154)
+  
+  gpkg_file <- file.path(
+    out_dir,
+    sprintf("Traj_EOS10_%d_%s_%s_%imin.gpkg", YEAR, alpage, id, sampling_interval)
+  )
+  if (file.exists(gpkg_file)) file.remove(gpkg_file)
+  st_write(pts,  gpkg_file, layer = "points",      delete_dsn = TRUE, quiet = TRUE)
+  st_write(seg_sf, gpkg_file, layer = "segments", append = TRUE, quiet = TRUE)
+  
+  message("✓ Segments delta_EOS écrits pour le collier ", id,
+          " (", nrow(seg_sf), " segments).")
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+first_use_flock_load <- function(daily_rds_file,        # chemin du .rds quotidien
+                                 output_case_alpage,    # dossier de sortie déjà créé
+                                 YEAR,                  # année (numeric ou character)
+                                 alpage,                # nom de l’alpage
+                                 threshold   = 30,      # seuil de charge cumulée
+                                 res_raster  = 10) {    # résolution (mètres)
+  library(dplyr)
+  library(raster)
+  
+  # 1. Lecture des données journalières ---------------------------------------
+  dat <- readRDS(daily_rds_file) %>%
+    filter(!is.na(Charge)) %>%                 # sûreté (valeurs manquantes)
+    arrange(day)                               # ordre chronologique global
+  
+  # 2. Jour de 1ʳᵉ utilisation par pixel --------------------------------------
+  first_day_df <- dat %>%
+    group_by(x, y) %>%                         # un groupe = un pixel
+    arrange(day, .by_group = TRUE) %>%
+    mutate(cum_load = cumsum(Charge)) %>%      # cumul jour → jour
+    filter(cum_load >= threshold) %>%          # dès que le seuil est atteint
+    slice_head(n = 1) %>%                      # on garde le premier
+    ungroup() %>%
+    transmute(x,
+              y,
+              first_day  = day,                                    # jour de l’année
+              first_date = as.Date(day - 1,
+                                   origin = paste0(YEAR, "-01-01"))) # date réelle
+  
+  # 3. Sauvegarde du tableau en .RDS -----------------------------------------
+  rds_out <- file.path(output_case_alpage,
+                       paste0("first_day_use_", YEAR, "_", alpage, ".rds"))
+  saveRDS(first_day_df, rds_out)
+  
+  # 4. Rasterisation ----------------------------------------------------------
+  if (nrow(first_day_df) > 0) {
+    r_template <- raster(extent(min(first_day_df$x), max(first_day_df$x),
+                                min(first_day_df$y), max(first_day_df$y)),
+                         resolution = res_raster)
+    
+    first_day_raster <- rasterize(as.matrix(first_day_df[, c("x", "y")]),
+                                  r_template,
+                                  field = first_day_df$first_day,
+                                  fun   = function(x, ...) x[1],   # un seul jour/cellule
+                                  background = NA)
+    
+    tif_out <- file.path(output_case_alpage,
+                         paste0("first_day_use_", YEAR, "_", alpage, ".tif"))
+    writeRaster(first_day_raster, filename = tif_out,
+                format = "GTiff", overwrite = TRUE)
+  }
+  
+  invisible(list(table_path  = rds_out,
+                 raster_path = if (exists("tif_out")) tif_out else NA))
+}

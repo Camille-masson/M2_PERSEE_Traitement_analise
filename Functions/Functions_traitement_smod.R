@@ -1349,3 +1349,127 @@ plot_multiple_alpages_violin_alti <- function(alpages,
 }
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+dataset_smod_median_alpage_year <- function(output_clim_case, output_SMOD_case){
+  
+  
+  
+  ## EXTRACTION DU JEU DE DONNee de la date de d'enneigement médian par année et par alpage : 
+  
+  library(terra)    # pour lire les rasters SMOD
+  library(dplyr)
+  library(lubridate)
+  
+  # ──────────────────────────────
+  # 1) Paramètre : dossier source
+  # ──────────────────────────────
+  output_SMOD_case <- file.path(output_clim_case, "SMOD")
+  # ────────────────────────────────────────────────────
+  # 2) Lister tous les fichiers SMOD (exclure FSCA/median)
+  # ────────────────────────────────────────────────────
+  smod_files <- list.files(output_SMOD_case,
+                           full.names = TRUE,
+                           recursive = FALSE) %>%
+    # ne garder que ceux dont le nom commence par "SMOD_"
+    .[grepl("^SMOD_", basename(.))] %>%
+    # exclure les fichiers median et les FSCA
+    .[ !grepl("SMOD_median|Fsca", basename(.), ignore.case = TRUE) ] %>%
+    # ne prendre que les .tif (ou .img si besoin)
+    .[ grepl("\\.tif$", basename(.), ignore.case = TRUE) ]
+  
+  
+  # ─────────────────────────────────────────────────────────────
+  # 3) Pour chaque fichier :
+  #    - extraire start/end date et alpage depuis le nom
+  #    - lire le raster
+  #    - calculer la médiane des pixels SMOD (jours depuis 1 Sep)
+  #    - convertir ce jour-index en date calend. puis en jour julien
+  # ─────────────────────────────────────────────────────────────
+  med_list <- lapply(smod_files, function(f){
+    nm     <- basename(f)
+    parts  <- strsplit(nm, "_")[[1]]
+    # parts = c("SMOD", "31TGK", "YYYYMMDD", "YYYYMMDD", "Alpage.tif")
+    start  <- as.Date(parts[3], "%Y%m%d")
+    end    <- as.Date(parts[4], "%Y%m%d")
+    year   <- year(end)                  # année hydrique = année de fin
+    alpage <- sub("\\.tif$", "", parts[5])
+    
+    # lire le raster et extraire toutes les valeurs
+    r      <- rast(f)
+    vals   <- values(r)
+    
+    # médiane de l’index (en jours depuis le 1er sept)
+    med_idx <- round(mean(vals, na.rm = TRUE))
+    
+    # 1) date calendrier correspondante
+    med_date <- start + (med_idx - 1)
+    # 2) jour julien (1 = 1er jan., … 365/366)
+    med_jul  <- yday(med_date)
+    
+    data.frame(
+      year           = year,
+      alpage         = alpage,
+      median_index   = med_idx,
+      date_median    = med_date,
+      julian_median  = med_jul
+    )
+  })
+  
+  # concaténer en un seul data.frame
+  df_smod_med <- bind_rows(med_list)
+  
+  # ───────────────────────────
+  # 4) Résultat à l’écran / CSV
+  # ───────────────────────────
+  print(df_smod_med)
+  
+  write.csv(df_smod_med,
+            file = file.path(output_SMOD_case, "SMOD_median_summary.csv"),
+            row.names = FALSE)
+  message("▶ SMOD median summary written to SMOD_median_summary.csv")
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+}
+
+
+
+
+
+
+
+

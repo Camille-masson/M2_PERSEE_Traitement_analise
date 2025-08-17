@@ -8,11 +8,11 @@ source(file.path(functions_dir, "Functions_filtering.R"))
 
 
 # Définition de l'année d'analyse
-YEAR <- 2024
-YEARS <- 2024
+YEAR <- 2023
+YEARS <- 2023
 TYPE <- "catlog" #Type de données d'entrée (CATLOG, OFB )
 alpage <- "Viso"
-alpages <- "Viso"
+alpages <- c("Viso","Cayolle","Sanguiniere")
 # Liste complète des alpages 2023 : "Cayolle", "Crouzet", "Grande-Cabane", "Lanchatra", "Rouanette", "Sanguiniere", "Vacherie-de-Roubion", "Viso"
 # Liste complète des alpages 2022 : "Cayolle", "Combe-Madame", "Grande-Fesse", "Jas-des-Lievres", "Lanchatra", "Pelvas", "Sanguiniere", "Viso"
 
@@ -69,6 +69,9 @@ if (TRUE) {
   # - Chargement total
   # - Chargement par comportement
   # - Chargement par jour 
+  # - Charge par quinzaine
+  # - Charge par parc de nuit 
+  # - 
   
   # LIBRARY & FUNCTION
   library(raster)
@@ -151,16 +154,27 @@ if (TRUE) {
   # CODE
 
   #Indicateur : Charge total .TIF
-  if (TRUE) {
-  total_flock_load_tif(total_rds_prefix, output_flock_tot_tif, output_flock_tot_tif_crop, UP_file, alpage, alpage_info_file)
+  if (FALSE) {
+  total_flock_load_tif(total_rds_prefix,
+                       output_flock_tot_tif,
+                       output_flock_tot_tif_crop,
+                       UP_file, 
+                       alpage, 
+                       alpage_info_file)
     }
   
   
   #Indicateur : Charge_by_state
-  if (TRUE) {
-  state_flock_load_tif(state_rds_prefix,output_flock_repos_tif,output_flock_deplacement_tif, output_flock_paturage_tif,
-                       output_flock_repos_tif_crop, output_flock_deplacement_tif_crop , output_flock_paturage_tif_crop,
-                       UP_file, alpage, alpage_info_file)
+  if (FALSE) {
+  state_flock_load_tif(state_rds_prefix,output_flock_repos_tif,
+                       output_flock_deplacement_tif,
+                       output_flock_paturage_tif,
+                       output_flock_repos_tif_crop,
+                       output_flock_deplacement_tif_crop,
+                       output_flock_paturage_tif_crop,
+                       UP_file, 
+                       alpage,
+                       alpage_info_file)
     }
   
   #Indicateur : Charge_by_day
@@ -196,7 +210,6 @@ if (TRUE) {
   }
   
   if (FALSE){
-  
   #Indicateur : Charge par parc et état
   park_state_flock_load_tif(park_state_rds,
                             output_case_alpage,
@@ -207,7 +220,7 @@ if (TRUE) {
   
   
   #Indicateur : Charge par parc filtered
-  if (TRUE){
+  if (FALSE){
     park_total_flock_load_tif_filtered(
       park_rds    = park_tot_filterd_rds,
       output_dir  = output_case_parc,
@@ -225,6 +238,22 @@ if (TRUE) {
                               UP_file, alpage, alpage_info_file)
   }
   
+  
+  ## Fonction calculant le premier jour d'utilisation du pixel
+  ## Utilisation du chargement par jour avec un cumule du chargement jusqu'au seuil
+  ## Fixée a 30 permettant d'identifier le pixel comme 1er jour d'utilisation
+  
+  if (TRUE){
+  first_use_flock_load(
+    daily_rds_file     = file.path(case_flock_alpage_file,
+                                   paste0("by_day_and_state_", YEAR, "_", alpage, ".rds")),
+    output_case_alpage = output_case_alpage,
+    YEAR               = YEAR,
+    alpage             = alpage,
+    threshold          = 30,   # modifiable si besoin
+    res_raster         = 10    # même résolution que vos autres indicateurs
+  )
+  }
   
   
   
@@ -478,6 +507,7 @@ if (TRUE){
   
   }
   
+
   
   
   
@@ -881,67 +911,7 @@ if (FALSE){
   }
   
   
-  library(dplyr)
-  library(ggplot2)
-  
-  # Fonction : median_load_by_habitat_bareh()
-  # --------------------------------------------------------------
-  # Arguments :
-  #   - load_veget_rds : chemin vers le fichier RDS (colonnes : day, vegetation_type, charge_sum)
-  #   - output_bar_png  : chemin complet (avec .png) pour sauvegarder le barplot horizontal
-  #
-  # Cette fonction :
-  #   1. Lit le RDS et exclut toute ligne où vegetation_type est NA.
-  #   2. Calcule la médiane de charge_sum par habitat.
-  #   3. Ordre les habitats par médiane décroissante.
-  #   4. Trace un barplot horizontal (geom_col + coord_flip).
-  #   5. Applique votre palette de couleurs initiale.
-  #   6. Enregistre le résultat dans un PNG.
-  # --------------------------------------------------------------
-  
-  library(dplyr)
-  library(ggplot2)
-  
-  # Fonction : mean_load_by_habitat_bareh()
-  # -------------------------------------------------------------
-  # Arguments :
-  #   - load_veget_rds : chemin vers le RDS contenant (day, vegetation_type, charge_sum)
-  #   - output_bar_png  : chemin complet (avec extension .png) pour sauvegarder le barplot
-  #
-  # Cette fonction :
-  #   1. Lit le RDS et exclut les lignes où vegetation_type est NA.
-  #   2. Calcule la charge moyenne par habitat.
-  #   3. Trie les habitats par charge moyenne décroissante.
-  #   4. Trace un barplot horizontal, sans contour, avec une palette soignée.
-  #   5. Enregistre le résultat au format PNG.
-  # -------------------------------------------------------------
-  
-  library(dplyr)
-  library(ggplot2)
-  library(scales)   # pour formatter les axes (comma)
-  
-  # =============================================================================
-  # Fonction : mean_load_by_habitat_bareh()
-  # =============================================================================
-  # Cette fonction :
-  #   • Lit un RDS comportant au moins trois colonnes :
-  #       - day (entier, non utilisé ici)
-  #       - vegetation_type (type d’habitat, caractère/facteur)
-  #       - charge_sum (charge journalière, numérique)
-  #   • Exclut toute ligne où vegetation_type est NA
-  #   • Calcule la charge moyenne par habitat
-  #   • Trie du plus grand au plus petit
-  #   • Trace un barplot horizontal épuré sans contours, sans grille superflue
-  #   • Enregistre le résultat dans un PNG
-  #
-  # Arguments :
-  #   - load_veget_rds : chemin complet vers le fichier RDS (ex. "…/charge_by_habitat_day_2022_Cayolle.rds")
-  #   - output_bar_png  : chemin complet du PNG de sortie (ex. "…/Charge_moyenne_par_habitat_2022_Cayolle.png")
-  # =============================================================================
-  
-  library(dplyr)
-  library(ggplot2)
-  library(scales)
+ 
   
   # =============================================================================
   # Fonction : mean_load_by_habitat_bareh()
@@ -1058,7 +1028,7 @@ if (FALSE){
   # ================================================================================
   # Exemple d’appel (à placer dans votre boucle alpage) :
   # ================================================================================
-  alpage <- "Cayolle"
+  alpage <- "Viso"
   YEAR   <- 2023
   #
   load_veget_rds <- file.path(
@@ -1081,6 +1051,148 @@ if (FALSE){
    
    
    
+   total_load_by_habitat_bar <- function(load_veget_rds,
+                                         qml_style,
+                                         output_bar_png,
+                                         pixel_surface = 625) {
+     # ──────────────────────────────────────────────────────────────
+     # 1) Packages
+     # ──────────────────────────────────────────────────────────────
+     library(dplyr)
+     library(ggplot2)
+     library(xml2)
+     library(stringi)   # pour normaliser accents
+     library(scales)
+     library(glue)
+     
+     # ──────────────────────────────────────────────────────────────
+     # 2) Données + filtrage NA
+     # ──────────────────────────────────────────────────────────────
+     df <- readRDS(load_veget_rds) |>
+       filter(!is.na(vegetation_type))
+     
+     # ──────────────────────────────────────────────────────────────
+     # 3) Conversion ha → pixel + somme TOTALE (logique de V1)
+     # ──────────────────────────────────────────────────────────────
+     df_tot <- df |>
+       mutate(charge_pix = charge_sum * pixel_surface / 10000) |>
+       group_by(vegetation_type) |>
+       summarise(Charge = sum(charge_pix, na.rm = TRUE), .groups = "drop") |>
+       arrange(Charge) |>
+       mutate(vegetation_type = factor(vegetation_type,
+                                       levels = vegetation_type))
+     
+     # ──────────────────────────────────────────────────────────────
+     # 4) Palette : extraction COMPLETE du QML
+     # ──────────────────────────────────────────────────────────────
+     qml <- read_xml(qml_style)
+     entries <- xml_find_all(qml, ".//paletteEntry[@label and @color]")
+     
+     pal_qml <- tibble::tibble(
+       label_qml = xml_attr(entries, "label"),
+       colour    = xml_attr(entries, "color")
+     ) |>
+       distinct()
+     
+     # ── 4a) Dictionnaire de synonymes -------------------------------------------
+     # Ajoute/édite ici si de nouveaux habitats apparaissent
+     alias <- c(
+       "Pelouses nivales"                 = "P. nivales",
+       "Pelouses productives"             = "P. productives",
+       "Pelouses humides"                 = "P. humides",
+       "Pelouses nitrophiles"             = "P. nitrophiles",
+       "Nardaies denses du subalpin"      = "Nardaies denses du subalpin",
+       "Pelouses thermiques écorchées"    = "P. thermiques écorchées",
+       "Pelouses thermiques enherbées"    = "P. thermiques enherbées",
+       "Queyrellins"                      = "Queyrellins",
+       "Pelouses en bombement de l’alpin" = "P. en bombement de l’alpin",
+       "P. intermédiaires de l’alpin"     = "P. intermédiaires de l’alpin",
+       "P. intermédiaires du subalpin"    = "P. intermédiaires du subalpin",
+       "Formations minérales"             = "Formations minérales",
+       "Forêts non pastorales"            = "Forêts non pastorales",
+       "Sous-bois pastoraux"              = "Sous-bois pastoraux",
+       "Landes"                           = "Landes",
+       "Megaphorbiaies et Aulnaies"       = "Megaphorbiaies et Aulnaies",
+       "Autres"                           = "Autres"
+     )
+     
+     # ── 4b) Fonction de correspondance ------------------------------------------
+     normalise <- function(x) {
+       x |>
+         stri_trans_general("Latin-ASCII") |>  # enlève accents
+         tolower() |>
+         trimws()
+     }
+     
+     pal_finale <- purrr::map_chr(as.character(levels(df_tot$vegetation_type)),
+                                  function(cl) {
+                                    # 1. essaie la correspondance exacte
+                                    hit <- pal_qml$colour[match(cl, pal_qml$label_qml)]
+                                    if (!is.na(hit)) return(hit)
+                                    
+                                    # 2. cherche via le dictionnaire alias
+                                    if (!is.null(alias[cl])) {
+                                      hit <- pal_qml$colour[match(alias[cl], pal_qml$label_qml)]
+                                      if (!is.na(hit)) return(hit)
+                                    }
+                                    
+                                    # 3. enfin : matching "faible" (sans accents & en minuscules)
+                                    idx <- match(
+                                      normalise(cl),
+                                      normalise(pal_qml$label_qml)
+                                    )
+                                    if (!is.na(idx)) return(pal_qml$colour[idx])
+                                    
+                                    # 4. sinon NA => gris dans le plot + warning plus loin
+                                    NA_character_
+                                  })
+     names(pal_finale) <- levels(df_tot$vegetation_type)
+     
+     # ── 4c) Avertir si des couleurs manquent ------------------------------------
+     manquantes <- names(pal_finale)[is.na(pal_finale)]
+     if (length(manquantes)) {
+       warning(
+         "\nCouleur ABSENTE dans le QML pour :\n  • ",
+         paste(manquantes, collapse = "\n  • "),
+         "\n→ Ces barres seront dessinées en gris clair."
+       )
+     }
+     
+     # ──────────────────────────────────────────────────────────────
+     # 5) Barplot
+     # ──────────────────────────────────────────────────────────────
+     p <- ggplot(df_tot,
+                 aes(y = vegetation_type, x = Charge, fill = vegetation_type)) +
+       geom_col(width = 0.8, colour = NA) +
+       scale_fill_manual(values = pal_finale, na.value = "grey80") +
+       scale_x_continuous(labels = comma,
+                          expand = expansion(mult = c(0, 0.05))) +
+       labs(
+         title = glue("Charge totale par habitat – {basename(load_veget_rds)}"),
+         x     = "Présence du troupeau (brebis·jours)",
+         y     = NULL
+       ) +
+       theme_minimal(base_size = 14, base_family = "Helvetica") +
+       theme(
+         plot.title         = element_text(face = "bold", size = 16, hjust = 0),
+         axis.text.y        = element_text(size = 12, margin = margin(r = 5)),
+         axis.text.x        = element_text(size = 10),
+         panel.grid.major.y = element_blank(),
+         panel.grid.minor   = element_blank(),
+         legend.position    = "none"
+       )
+     
+     # ──────────────────────────────────────────────────────────────
+     # 6) Export PNG
+     # ──────────────────────────────────────────────────────────────
+     ggsave(
+       filename = output_bar_png,
+       plot     = p,
+       width    = 10, height = 6, dpi = 300, units = "in"
+     )
+     
+     message("✅ Barplot enregistré dans : ", output_bar_png)
+   }
    
    
    
@@ -1089,6 +1201,25 @@ if (FALSE){
    
    
    
+   alpage <- "Viso"
+   YEAR   <- 2023
+   
+   load_veget_rds <- file.path(
+     output_load_veget_case,
+     glue("charge_by_habitat_day_{YEAR}_{alpage}.rds")
+   )
+   qml_style <- "C:/Users/massocam/Documents/STAGE_M2_PERSEE/R_studio/PERSEE_Traitement_Catlog/raster/Style_v1_2_3.qml"     # ⇦ adapte !
+   output_png <- file.path(
+     output_load_veget_case,
+     glue("Charge_totale_par_habitat_{YEAR}_{alpage}.png")
+   )
+   
+   total_load_by_habitat_bar(
+     load_veget_rds ,
+     qml_style,
+     output_bar_png,
+     pixel_surface  = 100    # 25 m × 25 m
+   )
    
    
    
@@ -1179,7 +1310,6 @@ if (FALSE){
      
      # 5) Palette “officielle” (hex codes), identique à celle des graphiques précédents
      palette_habitat_init <- c(
-       "Formations minérales"             = "#696969",
        "Pelouses productives"             = "#FFD700",
        "Pelouses nivales"                 = "#1E90FF",
        "Pelouses humides"                 = "#20B2AA",
@@ -1442,8 +1572,492 @@ ggsave(
   
   
   
+
+
+
+
+
+
+
+
+# ============================================================
+#  total_load_by_habitat.R
+#  ------------------------------------------------------------
+#  À partir des fichiers PRODUITS par la chaîne V1 (colliers,
+#  raster de végétation, etc.), calcule la charge totale par
+#  type d'habitat et génère un barplot horizontal identique à
+#  celui de la fonction « barplot_load_by_vegetation() » d'origine.
+#  ------------------------------------------------------------
+#  • Entrées indispensables (à adapter à votre arborescence) :
+#      - carto_file  : raster indexé couleur des habitats (*.tif)
+#      - daily_rds_prefix : fichier .RDS par alpage jour+état
+#      - qml_style  : fichier .qml contenant la palette officielle
+#      - YEAR / alpage : pour libellés et constructions de chemins
+#  • Sorties :
+#      - PNG dans le répertoire "4. Chargements_Calcules/…".
+# ============================================================
+
+# ---------------------------
+# 1) LIBRAIRIES
+# ---------------------------
+library(terra)      # lecture rasters
+library(dplyr)      # manipulations
+library(purrr)      # boucle/functional
+library(ggplot2)    # graphiques
+library(xml2)       # palette QML
+library(glue)       # chaînes collées
+library(scales)     # labellisation axe X
+
+# ---------------------------
+# 2) PARAMÈTRES À ADAPTER
+# ---------------------------
+YEAR    <- 2024
+alpage  <- "Viso"
+
+raster_dir           # <-- modifie
+output_dir             # <-- modifie
+
+carto_file <- file.path(raster_dir, "Classifications_fusion_ColorIndexed_sc1_landforms_mnh.tif")
+
+case_flock_file       <- file.path(output_dir, "4. Chargements_Calcules")
+case_flock_alpage_dir <- file.path(case_flock_file, glue("{YEAR}_{alpage}"))
+
+daily_rds_prefix <- file.path(case_flock_alpage_dir,
+                              glue("by_day_and_state_{YEAR}_{alpage}.rds"))
+
+qml_style <- "C:/Users/massocam/Documents/STAGE_M2_PERSEE/R_studio/PERSEE_Traitement_Catlog/raster/Style_v1_2_3.qml"   # <-- modifie
+
+# PNG final
+output_png <- file.path(case_flock_alpage_dir,
+                        glue("Charge_totale_par_habitat_{YEAR}_{alpage}.png"))
+
+# ---------------------------
+# 3) FONCTIONS UTILITAIRES
+# ---------------------------
+
+## 3.1 lire la palette du QML --------------------------------
+read_qml_palette <- function(qml_file) {
+  q <- read_xml(qml_file)
+  ent <- xml_find_all(q, ".//paletteEntry[@label and @color]")
+  cols  <- xml_attr(ent, "color")
+  labs  <- xml_attr(ent, "label")
+  setNames(cols, labs)
+}
+
+## 3.2 résolution / surface pixel ----------------------------
+get_pixel_surface <- function(rast) {
+  res_vals <- res(rast)    # largeur, hauteur en mètres (carte en 2154)
+  res_vals[1] * res_vals[2]
+}
+
+## 3.3 extraire l'habitat de chaque XY -----------------------
+extract_habitat <- function(df_xy, rast_hab) {
+  terra::extract(rast_hab, df_xy[, c("x", "y")])[,1]
+}
+
+# ---------------------------
+# 4) PIPELINE PRINCIPAL
+# ---------------------------
+
+build_total_load_plot <- function(carto_file, rds_file, qml_style,
+                                  output_png,
+                                  states_keep = c("Deplacement", "Paturage")) {
+  
+  # 4.1 Charger le raster d'habitat -------------------------
+  hab_rast <- rast(carto_file)
+  pixel_surface <- get_pixel_surface(hab_rast)
+  message("→ Surface d'un pixel : ", pixel_surface, " m²")
+  
+  # 4.2 Charger les charges journalières --------------------
+  df_day <- readRDS(rds_file)
+  
+  if ("state" %in% names(df_day)) {
+    df_day <- df_day %>% filter(state %in% states_keep)
+  }
+  
+  # 4.3 Somme saisonnière par pixel (toujours en brebis·jours/ha)
+  df_pix <- df_day %>%
+    group_by(x, y) %>%
+    summarise(charge_ha = sum(Charge, na.rm = TRUE), .groups = "drop")
+  
+  # 4.4 Conversion en brebis·jours/pixel -------------------
+  df_pix <- df_pix %>%
+    mutate(Charge = charge_ha * pixel_surface / 10000)
+  
+  # 4.5 Attribution habitat --------------------------------
+  df_pix$hab_code <- extract_habitat(df_pix, hab_rast)
+  df_pix <- df_pix %>% filter(!is.na(hab_code))
+  
+  # 4.6 Récupérer table d'attributs du raster --------------
+  hab_levels <- levels(hab_rast)[[1]]      # data.frame value / label si existant
+  if (!is.null(hab_levels) && all(c("ID", "Label") %in% names(hab_levels))) {
+    lookup <- setNames(hab_levels$Label, hab_levels$ID)
+  } else {
+    # fallback : étiquettes = code
+    lookup <- setNames(as.character(unique(df_pix$hab_code)), unique(df_pix$hab_code))
+  }
+  df_pix$vegetation_type <- lookup[as.character(df_pix$hab_code)]
+  
+  # 4.7 Agrégation totale par habitat ----------------------
+  df_tot <- df_pix %>%
+    group_by(vegetation_type) %>%
+    summarise(Charge = sum(Charge, na.rm = TRUE), .groups = "drop") %>%
+    arrange(Charge) %>%
+    mutate(vegetation_type = factor(vegetation_type, levels = vegetation_type))
+  
+  # 4.8 Palette QML ----------------------------------------
+  pal_qml <- read_qml_palette(qml_style)
+  pal_finale <- pal_qml[as.character(levels(df_tot$vegetation_type))]
+  
+  # celles manquantes seront gris clair
+  missing_pal <- names(pal_finale)[is.na(pal_finale)]
+  if (length(missing_pal)) {
+    warning("Couleur manquante pour : ", paste(missing_pal, collapse = ", "))
+  }
+  
+  # ----------------- 4.9 Plot -----------------------------
+  p <- ggplot(df_tot,
+              aes(y = vegetation_type, x = Charge, fill = vegetation_type)) +
+    geom_col(width = 0.8, colour = NA) +
+    scale_fill_manual(values = pal_finale, na.value = "grey80") +
+    scale_x_continuous(labels = comma,
+                       expand = expansion(mult = c(0, 0.05))) +
+    labs(title = glue("Charge totale par habitat – {basename(rds_file)}"),
+         x = "Présence du troupeau (brebis·jours)",
+         y = NULL) +
+    theme_minimal(base_size = 14) +
+    theme(plot.title         = element_text(face = "bold", hjust = 0),
+          axis.text.y        = element_text(margin = margin(r = 5)),
+          panel.grid.major.y = element_blank(),
+          panel.grid.minor   = element_blank(),
+          legend.position    = "none")
+  
+  # 4.10 Export PNG ----------------------------------------
+  ggsave(output_png, p, width = 10, height = 6, units = "in", dpi = 300)
+  message("✅ Barplot enregistré : ", output_png)
+  
+  invisible(p)
+}
+
+# ---------------------------
+# 5) LANCER !
+# ---------------------------
+build_total_load_plot(carto_file, daily_rds_prefix, qml_style, output_png)
+# Décommente la ligne ci‑dessous quand les chemins sont bons :
+# build_total_load_plot(carto_file, daily_rds_prefix, qml_style, output_png)
+
+
+
+
+
+
+library(terra)
+library(xml2)
+
+# a) quels nombres contient ton raster ?
+hab_r <- rast(carto_file)
+codes <- unique(values(hab_r))
+codes <- sort(codes[!is.na(codes)])
+cat("Codes présents dans le raster (premiers) :", head(codes), "\n\n")
+
+# b) que dit la table d'attributs embarquée (s'il y en a une) ?
+print(levels(hab_r))
+
+# c) que dit le QML ?
+qml <- read_xml(qml_style)
+entries <- xml_find_all(qml, ".//paletteEntry[@label and @color and @value]")
+pal_qml <- data.frame(value  = as.integer(xml_attr(entries, "value")),
+                      label  = xml_attr(entries, "label"),
+                      color  = xml_attr(entries, "color"))
+head(pal_qml)
+
+
+
+df_day <- readRDS(daily_rds_prefix)
+
+summary(df_day$Charge)            # la variable du RDS (brebis·jours / ha / JOUR)
+length(unique(df_day$day))        # nombre de jours de la saison
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# ============================================================
+#  total_load_by_habitat.R  (revision)
+# ------------------------------------------------------------
+#  Calcule la charge saisonnière totale (brebis·jours) par type
+#  d'habitat et trace un barplot horizontal, strictement selon
+#  la logique de la fonction V1 « barplot_load_by_vegetation() ».
+#
+#  Principales différences / robustesses :
+#    • Surface du pixel détectée *dans le jeu de charges* (dx,dy
+#      sur les coordonnées), plus sûre que le raster d'habitat.
+#    • Palette directement lue dans le QML (valeur → couleur).
+#    • Codes d'habitat absents du QML ignorés (pas d'avertissement
+#      interminable).
+# ============================================================
+
+library(dplyr)
+library(ggplot2)
+library(terra)
+library(xml2)
+library(purrr)
+library(scales)
+library(glue)
+
+# ------------------------------------------------------------
+#  FONCTION PRINCIPALE
+# ------------------------------------------------------------
+#  • carto_file  : raster .tif color‑indexed ( mêmes codes que QML )
+#  • rds_file    : charges journalières par pixel (brebis·jours / ha / jour)
+#  • qml_style   : palette officielle (QGIS .qml)
+#  • output_png  : chemin de sortie du graphique
+#  • states_keep : états retenus (si colonne state présente)
+# ------------------------------------------------------------
+
+build_total_load_plot <- function(carto_file,
+                                  rds_file,
+                                  qml_style,
+                                  output_png,
+                                  states_keep = c("Deplacement", "Paturage")) {
+  # ------- 1. Lecture données brutes ---------------------------------------
+  df_day <- readRDS(rds_file)
+  if ("state" %in% names(df_day)) {
+    df_day <- df_day %>% filter(state %in% states_keep)
+  }
+  
+  # ------- 2. Surface pixel détectée sur la grille charges -----------------
+  dx <- median(diff(sort(unique(df_day$x))))
+  dy <- median(diff(sort(unique(df_day$y))))
+  pixel_surface <- dx * dy                     # m²
+  message("→ Pixel charges : ", dx, "×", dy, " m  (", pixel_surface, " m²)")
+  
+  # ------- 3. Somme saisonnière par pixel (brebis·jours / ha) --------------
+  df_pix <- df_day %>%
+    group_by(x, y) %>%
+    summarise(charge_ha = sum(Charge, na.rm = TRUE), .groups = "drop") %>%
+    mutate(charge_pix = charge_ha * pixel_surface / 10000)  # → brebis·jours / pixel
+  
+  # ------- 4. Code habitat pour chaque pixel -------------------------------
+  hab_rast <- rast(carto_file)
+  df_pix$hab_code <- terra::extract(hab_rast, df_pix[, c("x", "y")])[,1]
+  df_pix <- df_pix %>% filter(!is.na(hab_code) & hab_code != 0)
+  
+  # ------- 5. Lire palette QML (value → label, color) ----------------------
+  qml <- read_xml(qml_style)
+  ent <- xml_find_all(qml, ".//paletteEntry[@label and @color and @value]")
+  pal_tbl <- tibble(value = as.integer(xml_attr(ent, "value")),
+                    label = xml_attr(ent, "label"),
+                    color = xml_attr(ent, "color"))
+  
+  # ------- 6. Jointure et agrégation totale --------------------------------
+  df_tot <- df_pix %>%
+    left_join(pal_tbl, by = c("hab_code" = "value")) %>%
+    filter(!is.na(label)) %>%                # on ignore les codes hors QML
+    group_by(label, color) %>%               # color unique par label
+    summarise(Charge = sum(charge_pix, na.rm = TRUE), .groups = "drop") %>%
+    arrange(Charge) %>%
+    mutate(label = factor(label, levels = label))
+  
+  # ------- 7. Barplot -------------------------------------------------------
+  p <- ggplot(df_tot, aes(y = label, x = Charge, fill = label)) +
+    geom_col(width = 0.8, colour = NA) +
+    scale_fill_manual(values = setNames(df_tot$color, df_tot$label), guide = "none") +
+    scale_x_continuous(labels = comma, expand = expansion(mult = c(0, 0.05))) +
+    labs(title = glue("Charge totale par habitat – {basename(rds_file)}"),
+         x = "Présence du troupeau (brebis·jours)", y = NULL) +
+    theme_minimal(base_size = 14) +
+    theme(plot.title         = element_text(face = "bold", hjust = 0),
+          axis.text.y        = element_text(size = 12, margin = margin(r = 5)),
+          panel.grid.major.y = element_blank())
+  
+  ggsave(output_png, p, width = 10, height = 6, dpi = 300, units = "in")
+  message("✅ Graphique enregistré : ", output_png)
+  invisible(p)
+}
+
+# ------------------------------------------------------------
+#  EXEMPLE D’APPEL (décommenter et adapter les chemins) :
+# ------------------------------------------------------------
+# YEAR    <- 2024
+# alpage  <- "Viso"
+# raster_dir <- "..." ; output_dir <- "..." ;
+# carto_file <- file.path(raster_dir, "Classifications_fusion_ColorIndexed_sc1_landforms_mnh.tif")
+# rds_file   <- file.path(output_dir, "4. Chargements_Calcules", glue("{YEAR}_{alpage}"),
+#                        glue("by_day_and_state_{YEAR}_{alpage}.rds"))
+# qml_style  <- "Style_v1_2_3.qml"
+# output_png <- file.path(output_dir, "4. Chargements_Calcules", glue("{YEAR}_{alpage}"),
+#                       glue("Charge_totale_par_habitat_{YEAR}_{alpage}.png"))
+build_total_load_plot(carto_file, rds_file, qml_style, output_png)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   
   
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# =======================================
+# PARAMÈTRES GLOBAUX
+# =======================================
+library(dplyr)
+library(terra)
+library(ggplot2)
+
+YEAR       <- 2023                              # ← ajuste
+data_dir   <- "/chemin/vers/data"                    # ← ajuste
+raster_dir <- "/chemin/vers/raster"                  # ← ajuste
+output_dir <- "/chemin/vers/output"                  # ← ajuste
+alpages    <- "Viso"              # ← ajuste
+
+carto_file    <- file.path(raster_dir,
+                           "Classifications_fusion_ColorIndexed_sc1_landforms_mnh.tif")
+case_flock_file <- file.path(output_dir, "4. Chargements_Calcules")
+
+case_UP_file <- file.path(raster_dir, "UP")          # dossier UP
+UP_file      <- file.path(case_UP_file,
+                          "v1_bd_shape_up_inra_2012_2014_2154_all_emprise.shp")
+
+raw_data_dir      <- file.path(data_dir,
+                               paste0("Colliers_", YEAR, "_brutes"))
+alpage_info_file  <- file.path(raw_data_dir,
+                               paste0(YEAR, "_infos_alpages.csv"))
+
+# =======================================
+# BOUCLE PRINCIPALE : UN BARPLOT / ALPAGE
+# =======================================
+for (alpage in alpages) {
+  message("---- Alpage : ", alpage)
+  
+  ## -------- 1. chemins de fichiers charge -----------
+  case_flock_alpage_file <- file.path(case_flock_file,
+                                      paste0(YEAR, "_", alpage))
+  
+  daily_rds_file <- file.path(case_flock_alpage_file,
+                              paste0("by_day_and_state_", YEAR, "_", alpage, ".rds"))
+  
+  total_rds_file <- file.path(case_flock_alpage_file,
+                              paste0("total_", YEAR, "_", alpage, ".rds"))      # adapte si nécessaire
+  
+  ## -------- 2. charge_tot (total par pixel) ----------
+  if (file.exists(total_rds_file)) {
+    charge_tot <- readRDS(total_rds_file)
+  } else {
+    if (!file.exists(daily_rds_file))
+      stop("Aucun RDS trouvé pour ", alpage)
+    charge_tot <- readRDS(daily_rds_file) %>%
+      group_by(x, y) %>%
+      summarise(Charge = sum(Charge, na.rm = TRUE),
+                .groups = "drop")
+  }
+  
+  ## -------- 3. cropping polygon (UP + buffer 300 m) ---
+  UP              <- get_UP_polygon(alpage, alpage_info_file, UP_file)
+  cropping_polygon <- terra::buffer(UP, 300)
+  charge_tot       <- crop_data.frame(charge_tot, cropping_polygon)
+  
+  ## -------- 4. carte végétation ----------------------
+  veg_path <- get_alpage_info(alpage, alpage_info_file, "chemin_carte_vegetation")
+  if (is.na(veg_path) || veg_path == "") veg_path <- carto_file
+  
+  veg_typo <- get_alpage_info(alpage, alpage_info_file, "typologie_vegetation")
+  if (is.na(veg_typo) || veg_typo == "") veg_typo <- "typology_STrouMPH"
+  
+  habitats <- get_vegetation_rasterized(
+    veg_path, veg_typo,
+    charge_tot[c("x","y")],
+    cropping_polygon)
+  
+  ## -------- 5. barplot -------------------------------
+  p <- barplot_load_by_vegetation(charge_tot, habitats, NULL)
+  
+  ## -------- 6. sauvegarde ----------------------------
+  out_dir <- file.path(output_dir, alpage)
+  dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
+  ggsave(file.path(out_dir, "Chargement_par_habitat.png"),
+         plot   = p,
+         width  = 8, height = 6, dpi = 300)
+  
+  message("     ✓ Barplot enregistré dans ", out_dir)
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   
   
   
@@ -1457,6 +2071,403 @@ ggsave(
   
   
 }
+
+
+
+
+
+
+
+
+
+
+
+#### 10. Chargement vs Végétation ####
+#---------------------------------------#
+if (FALSE){
+  # Library 
+  source(file.path(functions_dir, "Functions_Indicateurs.R"))
+  
+
+  
+    #ENTREE
+    # Un dossier contenant carte de végétation
+    carto_file = file.path(raster_dir, "Classifications_fusion_ColorIndexed_sc1_landforms_mnh.tif")
+    
+    # ENTREE
+    #Dossier contenant les sous dossier des chargement
+    case_flock_file = file.path(output_dir, "4. Chargements_Calcules")
+    #Dossier contenant les fichiers du tot de chargement
+    case_flock_alpage_file = file.path(case_flock_file,paste0(YEAR,"_",alpage))
+    
+    # Un .RDS par alpage contenant les charges journalières
+    total_rds_prefix = file.path(case_flock_alpage_file, paste0("total_",YEAR,"_",alpage,".rds"))
+    
+    
+    
+    
+    # Un dossier contenant les ratsers des Unités Pastorales (UP)
+    case_UP_file = file.path(raster_dir, "UP")
+    # Un .SHP avec les Unités pastorales UP
+    UP_file = file.path(case_UP_file,paste0 ("UP_",alpage,".shp"))
+    
+    
+    
+    # SORTIE 
+    # Création du dossier de sortie des indicateur pour la visualistaion
+    output_Plot_Animation_case <- file.path(output_dir, "7. Plot_et_Animation")
+    if (!dir.exists(output_Plot_Animation_case)) {
+      dir.create(output_Plot_Animation_case, recursive = TRUE)
+    }
+    # Création du sous-dossier Indicateur traitée : Espace paturé
+    output_load_veget_case <- file.path(output_Plot_Animation_case, "Chargement&Vegetation")
+    if (!dir.exists(output_load_veget_case)) {
+      dir.create(output_load_veget_case, recursive = TRUE)
+    }
+    
+    ## PRINT FOR CHATGPT
+    
+    Charge <- readRDS(total_rds_prefix )
+    summary(Charge)
+    
+    
+    raster(carto_file)
+    
+    
+    # ────────────────────────────────────────────
+    # 1. Packages
+    # ────────────────────────────────────────────
+    suppressPackageStartupMessages({
+      library(terra)
+      library(sf)
+      library(dplyr)
+      library(ggplot2)
+      library(scales)     # pour l’étiquette des milliers
+    })
+    
+    # ────────────────────────────────────────────
+    # 2. Paramètres
+    # ────────────────────────────────────────────
+    YEAR        <- 2023
+    alpage      <- "Viso"
+    seuil_prop  <- 0.05       # 5 % de la charge max
+    
+    carto_file            <- file.path(raster_dir,
+                                       "Classifications_fusion_ColorIndexed_sc1_landforms_mnh.tif")
+    case_flock_alpage_file<- file.path(output_dir,
+                                       "4. Chargements_Calcules",
+                                       paste0(YEAR, "_", alpage))
+    total_rds_prefix      <- file.path(case_flock_alpage_file,
+                                       paste0("total_", YEAR, "_", alpage, ".rds"))
+    UP_file               <- file.path(raster_dir, "UP",
+                                       paste0("UP_", alpage, ".shp"))
+    
+    # ────────────────────────────────────────────
+    # 3. Lecture
+    # ────────────────────────────────────────────
+    charge_tot <- readRDS(total_rds_prefix)
+    habitats   <- rast(carto_file)
+    UP         <- st_read(UP_file, quiet = TRUE)
+    
+    # ────────────────────────────────────────────
+    # 4. Clip raster à l’UP
+    # ────────────────────────────────────────────
+    hab_clip <- habitats |> crop(vect(UP)) |> mask(vect(UP))
+    
+    # ────────────────────────────────────────────
+    # 5. Affectation de l’habitat + conversion des charges
+    # ────────────────────────────────────────────
+    pts <- vect(charge_tot, geom = c("x", "y"), crs = crs(hab_clip))
+    pts$vegetation_type <- terra::extract(hab_clip, pts)[, 2]
+    
+    pixel_surface <- prod(res(hab_clip))          # m²/pixel (10 × 10 = 100)
+    pts$Charge    <- pts$Charge * pixel_surface / 10000  # brebis.jour/pixel
+    
+    # ────────────────────────────────────────────
+    # 6. Charge totale par habitat
+    # ────────────────────────────────────────────
+    df_charge <- pts |>
+      as.data.frame() |>
+      filter(!is.na(vegetation_type)) |>
+      group_by(vegetation_type) |>
+      summarise(Charge = sum(Charge), .groups = "drop")
+    
+    # ────────────────────────────────────────────
+    # 7. Surface (ha) par habitat
+    # ────────────────────────────────────────────
+    surf_tbl <- as.data.frame(freq(hab_clip)) |>
+      select(vegetation_type = value, n_pix = count) |>
+      mutate(Surface = n_pix * pixel_surface / 10000)
+    
+    # 8. Jointure charge + surface  ───────────────────────────
+    df_bar <- df_charge |>
+      left_join(surf_tbl, by = "vegetation_type") |>
+      mutate(
+        vegetation_type = as.character(vegetation_type),   # ⇦ conversion
+        Surface         = replace_na(Surface, 0)
+      )
+    
+    # 9. Regroupement des faibles charges sous « Autres » ─────
+    seuil_abs <- seuil_prop * max(df_bar$Charge)
+    
+    df_keep  <- df_bar |> filter(Charge >= seuil_abs)
+    df_other <- df_bar |> filter(Charge <  seuil_abs) |>
+      summarise(
+        vegetation_type = "Autres",
+        Charge          = sum(Charge),
+        Surface         = sum(Surface)
+      )
+    
+    df_plot <- bind_rows(df_keep, df_other) |>
+      arrange(desc(Charge)) |>
+      mutate(vegetation_type = factor(vegetation_type,
+                                      levels = vegetation_type))
+    # ────────────────────────────────────────────
+    # 10. Palette et libellés
+    # ────────────────────────────────────────────
+    hab_palette <- c(
+      `1`="#2eacff", `2`="#62c0ff", `3`="#ffa500", `4`="#ffd17c",
+      `5`="#2efd62", `6`="#7bff00", `7`="#c47f00", `8`="#ff0000",
+      `9`="#ff3c00", `10`="#ff784f", `11`="#fdcebf", `12`="#fff1ec",
+      `13`="#ffe600", `14`="#576dee", `15`="#aaaaaa", `16`="#138630",
+      `17`="#9456ff", `18`="#414141", `19`="#0a6357", `21`="#0124ee",
+      `910`="#ff3c00", `1112`="#fdcebf", `1518`="#414141",
+      `1619`="#138630", `16921`="#138630",
+      Autres="#bfbfbf"          # couleur pour la catégorie agrégée
+    )
+    
+    hab_labels <- c(
+      `1`="P. nivales",                       `2`="F. mixtes nivales/thermiques",
+      `3`="P. intermédiaires de l’alpin",     `4`="P. intermédiaires du subalpin",
+      `5`="Nardaies denses du subalpin",      `6`="Queyrellins",
+      `7`="Pelouses productives",             `8`="P. en bombement de l’alpin",
+      `9`="P. thermiques écorchées",          `10`="P. thermiques enherbées",
+      `11`="P. th. à brachypode pénné",       `12`="P. th. méditerranéo‑montagnardes",
+      `13`="Pelouses nitrophiles",            `14`="Pelouses humides",
+      `15`="Éboulis à ressource pastorale",   `16`="Sous‑bois pastoraux",
+      `17`="Landes",                          `18`="Formations minérales",
+      `19`="Forêts non pastorales",           `21`="Megaphorbiaies et Aulnaies",
+      `910`="P. thermiques fus.",             `1112`="P. th. montagnardes",
+      `1518`="Minéral fus.",                  `1619`="Forêts fus.",
+      `16921`="Ligneux hauts fus.",           Autres="Autres"
+    )
+    
+    # Ajoute la surface à l’étiquette (ex : « P. nivales\n411 ha »)
+    labels_long <- setNames(
+      paste0(hab_labels[df_plot$vegetation_type],
+             "\n",
+             comma(round(df_plot$Surface), accuracy = 1), " ha"),
+      df_plot$vegetation_type)
+    
+    # ────────────────────────────────────────────
+    # 11. Barplot
+    # ────────────────────────────────────────────
+    p_load_hab <- ggplot(df_plot,
+                         aes(y = vegetation_type,
+                             x = Charge,
+                             fill = vegetation_type)) +
+      geom_col(show.legend = FALSE) +
+      scale_fill_manual(values = hab_palette) +
+      scale_y_discrete(labels = labels_long) +
+      labs(x = "Présence du troupeau (brebis.jours)", y = NULL) +
+      theme_bw() +
+      theme(axis.title.x = element_text(size = 12, face = "bold"),
+            axis.text.y  = element_text(size = 9))
+    
+    # ────────────────────────────────────────────
+    # 12. Export PNG
+    # ────────────────────────────────────────────
+    out_dir <- file.path(output_dir,
+                         "7. Plot_et_Animation",
+                         "Chargement&Vegetation")
+    if (!dir.exists(out_dir)) dir.create(out_dir, recursive = TRUE)
+    
+    plot_file <- file.path(out_dir,
+                           paste0("Charge_Habitat_", alpage, "_", YEAR, ".png"))
+    
+    ggsave(plot_file, p_load_hab, width = 9, height = 6, dpi = 300)
+    message("✅ Barplot sauvegardé : ", plot_file,
+            "\n(Habitats < ", percent(seuil_prop), " de la charge max fusionnés sous « Autres »)")
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    ################################################################################
+    # Charge totale par habitat – version finale
+    #  • ordre : le plus chargé en haut
+    #  • habitats < seuil fusionnés en « Autres »
+    #  • surface (ha) sans séparateur de milliers
+    ################################################################################
+    
+    # ────────────────────────────────────────────
+    # 1. Packages
+    # ────────────────────────────────────────────
+    suppressPackageStartupMessages({
+      library(terra); library(sf); library(dplyr); library(ggplot2); library(forcats)
+    })
+    
+    # ────────────────────────────────────────────
+    # 2. Paramètres
+    # ────────────────────────────────────────────
+    YEAR        <- 2023
+    alpage      <- "Viso"
+    seuil_prop  <- 0.05                # 5 % de la charge max
+    pixel_side  <- 10                  # m (10 × 10 = 100 m²/pixel)
+    
+    carto_file <- file.path(raster_dir,
+                            "Classifications_fusion_ColorIndexed_sc1_landforms_mnh.tif")
+    total_rds  <- file.path(output_dir, "4. Chargements_Calcules",
+                            paste0(YEAR, "_", alpage),
+                            paste0("total_", YEAR, "_", alpage, ".rds"))
+    UP_file    <- file.path(raster_dir, "UP", paste0("UP_", alpage, ".shp"))
+    
+    out_dir <- file.path(output_dir, "7. Plot_et_Animation", "Chargement&Vegetation")
+    if (!dir.exists(out_dir)) dir.create(out_dir, recursive = TRUE)
+    
+    # ────────────────────────────────────────────
+    # 3. Lecture données
+    # ────────────────────────────────────────────
+    charge_tot <- readRDS(total_rds)
+    habitats   <- rast(carto_file)
+    UP         <- st_read(UP_file, quiet = TRUE)
+    
+    # ────────────────────────────────────────────
+    # 4. Découpe raster à l’UP
+    # ────────────────────────────────────────────
+    hab_clip <- habitats |> crop(vect(UP)) |> mask(vect(UP))
+    
+    # ────────────────────────────────────────────
+    # 5. Attribution habitat + conversion unité
+    # ────────────────────────────────────────────
+    pixel_surface <- pixel_side^2                       # m²/pixel
+    
+    pts <- vect(charge_tot, geom = c("x", "y"), crs = crs(hab_clip))
+    pts$vegetation_type <- terra::extract(hab_clip, pts)[, 2]
+    pts$Charge          <- pts$Charge * pixel_surface / 10000
+    
+    # ────────────────────────────────────────────
+    # 6. Charge & surface par habitat
+    # ────────────────────────────────────────────
+    df_charge <- pts |>
+      as.data.frame() |>
+      filter(!is.na(vegetation_type)) |>
+      mutate(vegetation_type = as.character(vegetation_type)) |>
+      group_by(vegetation_type) |>
+      summarise(Charge = sum(Charge), .groups = "drop")
+    
+    surf_tbl <- as.data.frame(freq(hab_clip)) |>
+      transmute(vegetation_type = as.character(value),
+                Surface = count * pixel_surface / 10000)
+    
+    df_bar <- df_charge |>
+      left_join(surf_tbl, by = "vegetation_type") |>
+      mutate(Surface = tidyr::replace_na(Surface, 0))
+    
+    # ────────────────────────────────────────────
+    # 7. Regroupe les faibles charges
+    # ────────────────────────────────────────────
+    seuil_abs <- seuil_prop * max(df_bar$Charge)
+    
+    df_keep <- filter(df_bar, Charge >= seuil_abs)
+    df_other <- filter(df_bar, Charge < seuil_abs) |>
+      summarise(vegetation_type = "Autres",
+                Charge          = sum(Charge),
+                Surface         = sum(Surface))
+    
+    df_plot <- bind_rows(df_keep, df_other)
+    
+    # ────────────────────────────────────────────
+    # 8. Palette & libellés
+    # ────────────────────────────────────────────
+    hab_palette <- c(
+      "1"="#2eacff","2"="#62c0ff","3"="#ffa500","4"="#ffd17c",
+      "5"="#2efd62","6"="#7bff00","7"="#c47f00","8"="#ff0000",
+      "9"="#ff3c00","10"="#ff784f","11"="#fdcebf","12"="#fff1ec",
+      "13"="#ffe600","14"="#576dee","15"="#aaaaaa","16"="#138630",
+      "17"="#9456ff","18"="#414141","19"="#0a6357","21"="#0124ee",
+      "910"="#ff3c00","1112"="#fdcebf","1518"="#414141",
+      "1619"="#138630","16921"="#138630","Autres"="#bfbfbf"
+    )
+    
+    hab_labels <- c(
+      "1"="P. nivales", "2"="F. mixtes nivales/thermiques",
+      "3"="P. intermédiaires de l’alpin", "4"="P. intermédiaires du subalpin",
+      "5"="Nardaies denses du subalpin", "6"="Queyrellins",
+      "7"="Pelouses productives", "8"="P. en bombement de l’alpin",
+      "9"="P. thermiques écorchées", "10"="P. thermiques enherbées",
+      "11"="P. th. à brachypode pénné", "12"="P. th. méditerranéo‑montagnardes",
+      "13"="Pelouses nitrophiles", "14"="Pelouses humides",
+      "15"="Éboulis à ressource pastorale", "16"="Sous‑bois pastoraux",
+      "17"="Landes", "18"="Formations minérales", "19"="Forêts non pastorales",
+      "21"="Megaphorbiaies et Aulnaies", "910"="P. thermiques fus.",
+      "1112"="P. th. montagnardes", "1518"="Minéral fus.",
+      "1619"="Forêts fus.", "16921"="Ligneux hauts fus.", "Autres"="Autres"
+    )
+    
+    # libellé = nom + surface sans virgule
+    df_plot <- df_plot |>
+      mutate(label_surface = paste0(hab_labels[vegetation_type],
+                                    "\n",
+                                    format(round(Surface), big.mark = "", scientific = FALSE),
+                                    " ha"),
+             # ordre ASC (= plus chargé en dernier) → donnera top‑down décroissant
+             label_surface = fct_reorder(label_surface, Charge, .desc = FALSE))
+    
+    # ────────────────────────────────────────────
+    # 9. Barplot
+    # ────────────────────────────────────────────
+    p_load_hab <- ggplot(df_plot,
+                         aes(y = label_surface, x = Charge, fill = vegetation_type)) +
+      geom_col(show.legend = FALSE) +
+      scale_fill_manual(values = hab_palette) +
+      labs(x = "Présence du troupeau (brebis.jours)", y = NULL) +
+      theme_bw() +
+      theme(axis.title.x = element_text(size = 14, face = "bold"),
+            axis.text.y  = element_text(size = 12, face = "bold"))
+    
+    # ────────────────────────────────────────────
+    # 10. Export
+    # ────────────────────────────────────────────
+    outfile <- file.path(out_dir,
+                         paste0("Charge_Habitat_", alpage, "_", YEAR, ".png"))
+    
+    ggsave(outfile, p_load_hab, width = 9, height = 6, dpi = 300)
+    message("✅ Graphique sauvegardé : ", outfile)
+    
+    
+    
+    
+    
+    
+    
+    
+}
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+
 
 #### 10. Delta de chargement ####
 #-------------------------------#
@@ -1479,7 +2490,7 @@ if (FALSE){
   
   #ANNEE 1
   # Sous-sous-dossier alpage et années traitée : Chargement
-  file_case_alpage_YEAR_1 <- file.path(output_chargement_case, paste0(YEAR_1,"_",alpage))
+  file_case_alpage_YEAR_1 <- file.path(file_chargement_case, paste0(YEAR_1,"_",alpage))
   
   # Un .TIF par alpage contenant les charges par comportement
   output_flock_repos_tif_YEAR_1 = file.path(file_case_alpage_YEAR_1, paste0("repos",YEAR_1,"_",alpage,".tif"))
@@ -1491,7 +2502,7 @@ if (FALSE){
   
   #ANNEE 2
   # Sous-sous-dossier alpage et années traitée : Chargement
-  file_case_alpage_YEAR_2 <- file.path(output_chargement_case, paste0(YEAR_2,"_",alpage))
+  file_case_alpage_YEAR_2 <- file.path(file_chargement_case, paste0(YEAR_2,"_",alpage))
   
   # Un .TIF par alpage contenant les charges par comportement
   output_flock_repos_tif_YEAR_2 = file.path(file_case_alpage_YEAR_2, paste0("repos",YEAR_2,"_",alpage,".tif"))
