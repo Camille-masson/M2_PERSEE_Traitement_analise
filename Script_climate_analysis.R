@@ -809,7 +809,7 @@ if (TRUE) {
   
   
   ###############################################################################
-  #  Δ-IRGmax quotidien : ruban = quantiles 2.5–97.5 %                          #
+  # VERSION 1 Δ-IRGmax quotidien : ruban = quantiles 2.5–97.5 %                          #
   ###############################################################################
   
   library(data.table)
@@ -817,8 +817,8 @@ if (TRUE) {
   library(scales)
   library(glue)
   
-  dt_2022 <- readRDS(file.path(out_dir, paste0("dataset_delta_IRGmax_2022_",alpage,".rds")))
-  dt_2023 <- readRDS(file.path(out_dir, paste0("dataset_delta_IRGmax_2023_",alpage,".rds")))
+  dt_2022 <- readRDS(file.path(out_dir, paste0("dataset_delta_IRGmax2022_",alpage,".rds")))
+  dt_2023 <- readRDS(file.path(out_dir, paste0("dataset_delta_IRGmax2023_",alpage,".rds")))
   
   
   ## 1. Pixels utilisés (charge ≥ 1) -------------------------------------------
@@ -866,7 +866,7 @@ if (TRUE) {
   
   
   
-  
+  ### VERSION 2 ###
   
   library(data.table)
   library(ggplot2)
@@ -883,10 +883,10 @@ if (TRUE) {
   # ---------------- Params “look & feel” ----------------
   smooth_k   <- 2      # fenêtre de lissage (jours) : 7–11 marche bien
   charge_min <- 20      # seuil de pixels utilisés
-  pal_year   <- c(`2022`="#c77f64", `2023`="#c0ccdf")  # bleu & orange propres
+  pal_year   <- c(`2022`="#c0ccdf", `2023`="#c77f64")  # bleu & orange propres
   
   
-  
+
   
   
   # --- Chargement ---------------------------------------------------------------
@@ -987,7 +987,7 @@ if (TRUE) {
   
   
   # Export as a low-height banner (nearly A4 width)
-  ggsave(file.path(out_dir, glue("delta_IRGmax_{alpage}_2022_2023_banner_en.png")),
+  ggsave(file.path(out_dir, glue("delta_IRGmax_{alpage}_2022_2023_banner_en.svg")),
          p, width = 11.2, height = 5.5, dpi = 300)
   
   
@@ -996,6 +996,131 @@ if (TRUE) {
   
   
   
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  ### VERSION 2 — corrigée & robuste ###
+  
+  library(data.table)
+  library(ggplot2)
+  library(scales)
+  library(glue)
+  
+  # ---------------- Params “look & feel” ----------------
+  smooth_k   <- 2            # impair pour un vrai centrage; 7–11 marche bien
+  charge_min <- 20           # seuil de pixels utilisés (cohérent partout)
+  pal_year   <- c(`2022`="#c0ccdf", `2023`="#c77f64")  # orange & bleu doux
+  
+  # Forcer smooth_k impair si besoin
+  if (smooth_k %% 2 == 0) smooth_k <- smooth_k + 1L
+  
+  # --- Chargement ---------------------------------------------------------------
+  dt_2022 <- as.data.table(readRDS(file.path(out_dir, paste0("dataset_delta_IRGmax2022_", alpage, ".rds"))))
+  dt_2023 <- as.data.table(readRDS(file.path(out_dir, paste0("dataset_delta_IRGmax2023_", alpage, ".rds"))))
+  
+  dt_2022[, year := 2022L]
+  dt_2023[, year := 2023L]
+  
+  dt <- rbindlist(list(dt_2022, dt_2023), use.names = TRUE, fill = TRUE)
+  
+  # --- Filtre pixels utilisés ---------------------------------------------------
+  dt_used <- dt[!is.na(charge) & charge >= charge_min]
+  
+  # --- Statistiques journalières par année -------------------------------------
+  # Δ moyen + quantiles 10/90, avec garde-fous si peu d'observations
+  n_min_grp <- charge_min
+  daily <- dt_used[
+    , .(
+      mean_delta = mean(delta_day_IRG_max, na.rm = TRUE),
+      q10        = if (.N >= n_min_grp) quantile(delta_day_IRG_max, 0.10, na.rm = TRUE) else NA_real_,
+      q90        = if (.N >= n_min_grp) quantile(delta_day_IRG_max, 0.90, na.rm = TRUE) else NA_real_,
+      n          = .N
+    ),
+    by = .(year, doy)
+  ][order(year, doy)]
+  
+  # --- Lissage (moyenne mobile centrée) ----------------------------------------
+  daily[, mean_smooth := frollmean(mean_delta, n = smooth_k, align = "center", na.rm = TRUE), by = year]
+  daily[, q10_smooth  := frollmean(q10,        n = smooth_k, align = "center", na.rm = TRUE), by = year]
+  daily[, q90_smooth  := frollmean(q90,        n = smooth_k, align = "center", na.rm = TRUE), by = year]
+  
+  # --- Plage Y & ticks robustes -------------------------------------------------
+  yrng    <- range(c(daily$mean_smooth, daily$q10_smooth, daily$q90_smooth), na.rm = TRUE)
+  if (!all(is.finite(yrng))) yrng <- c(-1, 1)  # fallback si tout NA
+  pad     <- diff(yrng) * 0.06
+  y_lower <- floor(yrng[1] - pad)
+  y_upper <- ceiling(yrng[2] + pad)
+  
+  y_breaks2 <- pretty(c(y_lower, y_upper), n = 6)
+  if (!0 %in% y_breaks2) y_breaks2 <- sort(c(y_breaks2, 0))
+  
+  lab_y2 <- function(b) {
+    out <- number(b, accuracy = 1)
+    out[b == 0] <- "MAXV"
+    out
+  }
+  
+  # --- Plot --------------------------------------------------------------------
+  # --- Plot (avec -20 sur Y + label "Delta") -----------------------------------
+  # on force -20 dans les limites et dans les graduations
+  y_lower2  <- min(y_lower, -20)
+  y_breaks2 <- sort(unique(c(y_breaks2, -20, 0)))
+  
+  p <- ggplot(daily[n >= n_min_grp], aes(x = doy, group = factor(year))) +
+    geom_ribbon(aes(ymin = q10_smooth, ymax = q90_smooth, fill = factor(year)),
+                alpha = 0.18, colour = NA, na.rm = TRUE) +
+    geom_line(aes(y = mean_smooth, colour = factor(year)),
+              linewidth = 1.4, lineend = "round", na.rm = TRUE) +
+    geom_hline(yintercept = 0, linetype = "longdash", linewidth = 0.9, colour = "grey20") +
+    scale_color_manual(
+      name   = "Grazing resource use by the herd :",
+      values = pal_year,
+      labels = c("2022", "2023")
+    ) +
+    scale_fill_manual(values = pal_year, guide = "none") +
+    scale_x_continuous("Day of year (DOY)",
+                       breaks = pretty(unique(daily$doy), n = 8),
+                       expand = expansion(mult = c(0.005, 0.02))) +
+    scale_y_continuous("Delta days from vegetation peak (MAXV)",
+                       limits = c(y_lower2, y_upper),
+                       breaks = y_breaks2,
+                       labels = lab_y2,         # 0 reste étiqueté "MAXV"
+                       expand = expansion(mult = c(0.02, 0.08))) +
+    theme_minimal(base_size = 15) +
+    theme(
+      legend.position      = c(0.985, 0.98),
+      legend.justification = c(1, 1),
+      legend.direction     = "vertical",
+      legend.background    = element_rect(fill = scales::alpha("white", 0.85), colour = "grey80"),
+      legend.key.height    = unit(10, "pt"),
+      legend.title         = element_text(size = 12, face = "bold"),
+      legend.text          = element_text(size = 12),
+      axis.text.x          = element_text(size = 12),
+      axis.text.y          = element_text(size = 12),
+      axis.ticks.x         = element_line(colour = "black", linewidth = 0.4),
+      axis.ticks.y         = element_line(colour = "black", linewidth = 0.4),
+      axis.ticks.length    = unit(3, "pt"),
+      panel.grid.minor     = element_blank(),
+      panel.grid.major.x   = element_line(linewidth = 0.25),
+      panel.grid.major.y   = element_line(linewidth = 0.25),
+      panel.border         = element_rect(colour = "black", fill = NA, linewidth = 0.9),
+      plot.title           = element_blank(),
+      plot.margin          = margin(4, 8, 2, 8)
+    )
+  
+  print(p)
+  
+  
+  # --- Export -------------------------------------------------------------------
+  outfile_png <- file.path(out_dir, glue("delta_IRGmax_{alpage}_2022_2023_banner_en.svg"))
+  ggsave(outfile_png, p, width = 6.2, height = 5.5, dpi = 300)
+  cat("✅ Figure écrite :", outfile_png, "\n")
   
   
   

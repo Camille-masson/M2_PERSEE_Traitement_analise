@@ -2725,6 +2725,212 @@ if (FALSE){
   
 }
 
+
+
+
+
+
+#### 11. Delta MAXV ####
+#----------------------#
+
+if(TRUE){
+  
+  fileSOSD_2022 <- "C:/Users/massocam/Documents/STAGE_M2_PERSEE/R_studio/PERSEE_Traitement_Catlog/raster/SOSD_Cayolle_2022.tif"
+  fileSOSD_2023 <- "C:/Users/massocam/Documents/STAGE_M2_PERSEE/R_studio/PERSEE_Traitement_Catlog/raster/SOSD_Cayolle_2023.tif"
+  
+  library(terra); library(RColorBrewer)
+  
+  fileSOSD_2022 <- "C:/Users/massocam/Documents/STAGE_M2_PERSEE/R_studio/PERSEE_Traitement_Catlog/raster/SOSD_Cayolle_2022.tif"
+  fileSOSD_2023 <- "C:/Users/massocam/Documents/STAGE_M2_PERSEE/R_studio/PERSEE_Traitement_Catlog/raster/SOSD_Cayolle_2023.tif"
+  
+  # 1) Lecture
+  s22 <- rast(fileSOSD_2022)
+  s23 <- rast(fileSOSD_2023)
+  
+  # 2) Harmonisation sur la grille 2022 (dates → nearest)
+  s23a <- resample(s23, s22, method = "near")
+  
+  # 3) Delta classique (post - pré)
+  d_sos <- s23a - s22
+  names(d_sos) <- "delta_SOSD_2023_minus_2022"
+  
+  # (Optionnel) bornes saison plausibles, ex. 80–220 (à adapter)
+  season <- c(10, 150)
+  ok <- (s22 >= season[1] & s22 <= season[2] & s23a >= season[1] & s23a <= season[2])
+  d_sos <- ifel(ok, d_sos, NA)
+  
+  # 4) Sauvegarde GeoTIFF
+  out_delta <- file.path(dirname(fileSOSD_2022), "SOSD_delta_2023_minus_2022.tif")
+  writeRaster(d_sos, out_delta, overwrite = TRUE,
+              datatype = "FLT4S", gdal = c("COMPRESS=LZW"))
+  
+  # 5) Carte centrée sur 0 (bleu = plus tôt, rouge = plus tard)
+  pal <- colorRampPalette(rev(brewer.pal(11, "RdBu")))
+  m <- max(abs(global(d_sos, c("min","max"), na.rm = TRUE)))
+  plot(d_sos, col = pal(255), zlim = c(-m, m),
+       main = "SOSD Δ (2023 − 2022) — + = plus tard, − = plus tôt")
+  
+  # 6) Résumés rapides
+  print(global(d_sos, c("min","mean","max"), na.rm = TRUE))  # en jours
+  prop_early <- global(d_sos < 0, "mean", na.rm = TRUE)[1]
+  prop_late  <- global(d_sos > 0, "mean", na.rm = TRUE)[1]
+  cat(sprintf("Début plus tôt en 2023 : %.1f%% | plus tard : %.1f%%\n",
+              100*prop_early, 100*prop_late))
+  
+  # 7) (Optionnel) Carte catégorielle lisible (±7 jours = stable)
+  thr <- 7
+  d_sos_cat <- classify(d_sos, rbind(
+    c(-Inf, -thr, 1),   # 1 = plus tôt
+    c(-thr,  thr, 0),   # 0 = stable
+    c( thr,  Inf, 2)    # 2 = plus tard
+  ))
+  levels(d_sos_cat) <- data.frame(value=c(0,1,2),
+                                  label=c("≈ stable (±7 j)","plus tôt","plus tard"))
+  writeRaster(d_sos_cat,
+              file.path(dirname(fileSOSD_2022), "SOSD_delta_cat_2023_minus_2022.tif"),
+              overwrite = TRUE, datatype = "INT1U", gdal = "COMPRESS=LZW")
+  
+  
+  
+  library(terra); library(RColorBrewer)
+  # ── Packages
+  suppressPackageStartupMessages({
+    library(terra); library(RColorBrewer)
+  })
+  
+  ## ---- Packages ----
+  library(terra)
+  library(RColorBrewer)
+  
+  # ---- Fichiers ----
+  file_2022 <- "C:/Users/massocam/Documents/STAGE_M2_PERSEE/R_studio/PERSEE_Traitement_Catlog/raster/PMAX_DOY_Cayolle_2022.tif"
+  file_2023 <- "C:/Users/massocam/Documents/STAGE_M2_PERSEE/R_studio/PERSEE_Traitement_Catlog/raster/PMAX_DOY_Cayolle_2023.tif"
+  
+  # ---- Lecture ----
+  r22 <- rast(file_2022)
+  r23 <- rast(file_2023)
+  
+  # ---- Harmonisation grille (CRS, résolution, emprise) ----
+  # On projette/échantillonne r22 sur la grille de r23 avec "near" (donnée entière JDN)
+  if (!compareGeom(r22, r23, stopOnError = FALSE)) {
+    if (crs(r22) != crs(r23)) {
+      r22 <- project(r22, r23, method = "near")
+    }
+    if (!all(res(r22) == res(r23)) || !ext(r22) == ext(r23)) {
+      r22 <- resample(r22, r23, method = "near")
+    }
+  }
+  # Emprise commune (par sécurité)
+  e <- intersect(ext(r22), ext(r23))
+  r22 <- crop(r22, e)
+  r23 <- crop(r23, e)
+  
+  # ---- Nettoyage : garder uniquement des jours valides ----
+  .valid <- function(x) ifelse(x >= 1 & x <= 366, x, NA)
+  r22v <- app(r22, .valid)
+  r23v <- app(r23, .valid)
+  
+  # ---- Delta (2023 - 2022) ----
+  delta <- r23v - r22v
+  names(delta) <- "delta_doy_2023_minus_2022"
+  
+  # ---- Stats rapides ----
+  # ---- Stats rapides (corrigé) ----
+  library(terra)
+  
+  # bornes pour l'étendue de la palette
+  mm   <- terra::global(delta, fun = c("min","max"), na.rm = TRUE)
+  mabs <- max(abs(c(mm$min, mm$max)), na.rm = TRUE)
+  
+  # stats de base
+  basic <- terra::global(delta, fun = c("min","max","mean","sd"), na.rm = TRUE)
+  
+  # quantiles globaux (sur toutes les cellules non-NA)
+  qs <- terra::global(
+    delta,
+    fun   = quantile,
+    probs = c(0.05, 0.25, 0.50, 0.75, 0.95),
+    na.rm = TRUE
+  )
+  
+  # mise en forme
+  qs <- as.data.frame(qs)
+  colnames(qs) <- c("q05","q25","q50","q75","q95")
+  stats <- cbind(basic, qs)
+  print(stats)
+  
+  library(terra)
+  library(RColorBrewer)
+  
+  # --- Limite symétrique autour de 0 ---
+  mm  <- terra::global(delta, fun = c("min","max"), na.rm = TRUE)
+  lim <- max(abs(c(mm$min, mm$max)), na.rm = TRUE)  # ex: [-lim, +lim]
+  
+  # --- Palettes sans blanc au centre ---
+  n <- 128
+  pal_neg <- colorRampPalette(brewer.pal(9, "Blues")[3:9])(n)  # évite les tons quasi blancs
+  pal_pos <- colorRampPalette(brewer.pal(9, "Reds")[3:9])(n)
+  pal     <- c(pal_neg, pal_pos)
+  
+  # --- Coupure exacte à 0 (0 n'a pas de couleur) ---
+  brks <- c(seq(-lim, 0, length.out = n + 1),
+            seq(0,  lim, length.out = n + 1)[-1])
+  
+  # On enlève les zéros du fond pour qu'ils ne prennent aucune couleur
+  delta_nozero <- ifel(delta == 0, NA, delta)
+  zero_mask    <- ifel(delta == 0, 1, NA)
+  
+  # --- Plot ---
+  op <- par(mar = c(3, 3, 3, 6))  # marge droite pour la légende
+  plot(delta_nozero,
+       col    = pal,
+       breaks = brks,
+       zlim   = c(-lim, lim),     # centre exactement sur 0
+       main   = "Δ jour du pic (2023–2022)\n>0 = plus tard en 2023, <0 = plus tôt",
+       axes   = TRUE)
+  
+  # Surimpression : **uniquement** les zéros en blanc
+  plot(zero_mask, col = "white", legend = FALSE, add = TRUE)
+  par(op)
+  # (optionnel) Histogramme discret par jour
+  f <- freq(delta, digits=0, useNA="no")
+  if (!is.null(f)) {
+    plot(f[,1], f[,2], type="h", xlab="Δ (jours)", ylab="Nombre de pixels",
+         main="Distribution du Δ DOY", lwd=2)
+  }
+  
+  # ---- Écriture du raster delta ----
+  out_delta <- gsub("MAXD_Cayolle_2023.tif", "MAXD_Cayolle_delta_2023_minus_2022.tif", file_2023)
+  writeRaster(delta, out_delta, overwrite=TRUE,
+              wopt = list(datatype="INT2S",
+                          NAflag = -32768,
+                          gdal = c("COMPRESS=DEFLATE","PREDICTOR=2","ZLEVEL=9")))
+  cat("Delta écrit dans :", out_delta, "\n")
+  
+  
+  
+  
+  
+  
+  
+  
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 #### 11. PLOT DIAPO ####
 #----------------------#
 if (FALSE){
