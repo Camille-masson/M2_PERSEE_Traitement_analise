@@ -12,7 +12,7 @@ source(file.path(functions_dir, "Functions_filtering.R"))
 YEAR <- 2024
 TYPE <- "catlog" #Type de données d'entrée (CATLOG, OFB )
 alpage <- "Cayolle"
-alpages <- c("Cayolle","Sanguiniere")
+alpages <- "Cayolle"
 # Liste complète des alpages 2023 : "Cayolle", "Crouzet", "Grande-Cabane", "Lanchatra", "Rouanette", "Sanguiniere", "Vacherie-de-Roubion", "Viso"
 # Liste complète des alpages 2022 : "Cayolle", "Combe-Madame", "Grande-Fesse", "Jas-des-Lievres", "Lanchatra", "Pelvas", "Sanguiniere", "Viso"
 
@@ -63,7 +63,7 @@ filtering_and_saving_viterbi_by_alpage(input_rds_file, output_dir, YEAR)
 
 #### 1. Extraction des raster CHARGEMENT ####
 #-------------------------------------------#
-if (FALSE) {
+if (T) {
   # Exctraction des raster au format tif 
   # Génération de différent tif : 
   # - Chargement total
@@ -138,22 +138,22 @@ if (FALSE) {
   # CODE
 
   #Indicateur : Charge total .TIF
-  if (TRUE) {
+  if (F) {
   total_flock_load_tif(total_rds_prefix, output_flock_tot_tif, output_flock_tot_tif_crop, UP_file, alpage, alpage_info_file)
     }
   
   
   #Indicateur : Charge_by_state
-  if (TRUE) {
+  if (F) {
   state_flock_load_tif(state_rds_prefix,output_flock_repos_tif,output_flock_deplacement_tif, output_flock_paturage_tif,
                        output_flock_repos_tif_crop, output_flock_deplacement_tif_crop , output_flock_paturage_tif_crop,
                        UP_file, alpage, alpage_info_file)
     }
   
   #Indicateur : Charge_by_day
-  if (FALSE){
+  if (T){
     res_raster <- 10 # ou la valeur que tu souhaites explicitement
-    day_flock_load_tif_nostack(daily_rds_prefix, output_case_alpage, UP_file, alpage, alpage_info_file, YEAR, res_raster, CROP = "YES")
+    day_flock_load_tif_nostack(daily_rds_prefix, output_case_alpage, UP_file, alpage, alpage_info_file, YEAR, res_raster, CROP = "NO")
     
     
     }
