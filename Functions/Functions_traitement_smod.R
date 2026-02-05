@@ -72,13 +72,8 @@ load_smod_for_alpage <- function(alpage_name = alpage,
 
 
 crop_smod_by_UP <- function(stack_smod_viso, alpage, alpage_info_file, UP_file) {
-  
-  alpage = "Cayolle"
   # Récupération du shapefile UP pour l'alpage
-  UP_selected <- get_UP_shp(alpage, alpage_info_file, UP_file)
-  
-  
-  
+  UP_selected <- st_read(UP_file)
   # 1) Vérifier le CRS du raster
   crs_raster <- crs(current_raster)  
   # 2) Vérifier le CRS du shapefile (en sf)
@@ -201,11 +196,7 @@ process_smod_for_alpage <- function(alpage_name, year_1, year_2,
   
   
   # 4. Charger le shapefile des Unités Pastorales (UP) pour l'alpage via get_UP_shp
-  UP_selected <- get_UP_shp(alpage_name, alpage_info_file, UP_file)
-  if(nrow(UP_selected) == 0) {
-    warning("Aucune Unité Pastorale trouvée pour l'alpage spécifié. Le raster crop ne sera pas généré.")
-    return(invisible(NULL))
-  }
+  UP_selected <- st_read(UP_file)
   
   # 5. Harmoniser le CRS entre le raster et l'UP
   test_raster <- raster(filtered_files[1])
