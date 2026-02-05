@@ -19,7 +19,7 @@ source(file.path(functions_dir, "Functions_filtering.R"))
 # Définition de l'année d'analyse
 YEAR <- 2023
 TYPE <- "catlog" #Type de données d'entrée (CATLOG, OFB )
-alpage <- "Cayolle"
+alpage <- "Mantet"
 alpages <- c("Cayolle","Viso","Sanguiniere")
 # Liste complète des alpages 2023 : "Cayolle", "Crouzet", "Grande-Cabane", "Lanchatra", "Rouanette", "Sanguiniere", "Vacherie-de-Roubion", "Viso"
 # Liste complète des alpages 2022 : "Cayolle", "Combe-Madame", "Grande-Fesse", "Jas-des-Lievres", "Lanchatra", "Pelvas", "Sanguiniere", "Viso"
@@ -78,7 +78,7 @@ if (TRUE) {
   case_UP_file = file.path(raster_dir, "UP")
   
   # Un .SHP avec les Unités pastorales UP
-  UP_file = file.path(case_UP_file, "v1_bd_shape_up_inra_2012_2014_2154_all_emprise.shp")
+  UP_file = file.path(case_UP_file, paste0("UP_",alpage,".shp"))
   
   # Un dossier contenant les Infos sur les alpages
   raw_data_dir = file.path(data_dir,paste0("Colliers_",YEAR,"_brutes"))
